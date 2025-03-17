@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import TrailCard from "./components/TrailCard";
+import './App.css';
 
 const trails = [
   { id: 1, name: "Whiskey Rapids Trail", level: "Easy", dist: "17kms", time: "150mins" },
