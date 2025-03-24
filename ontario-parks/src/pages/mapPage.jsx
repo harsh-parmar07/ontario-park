@@ -1,11 +1,13 @@
-// MapPage.js
+// src/pages/mapPage.jsx
 import React, { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import './MapPage.css';
+import '../styles/mapPage.css';
+import trailData from '../data/trailData';
 
 const MapPage = () => {
+  const navigate = useNavigate();
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
   const [markers, setMarkers] = useState([]);
@@ -14,6 +16,10 @@ const MapPage = () => {
   const [loading, setLoading] = useState(false);
   const [filterVisible, setFilterVisible] = useState(true);
   const [selectedFilters, setSelectedFilters] = useState([]);
+
+  const handleTrailClick = (trailId) => {
+    navigate(`/trail/${trailId}`);
+  };
 
   // Initialize map on component mount
   useEffect(() => {
@@ -66,16 +72,58 @@ const MapPage = () => {
           
           // Fetch parks near the user's location
           fetchParks(userLocation[0], userLocation[1], mapInstance);
+          
+          // Also add the sample trails for testing
+          addSampleTrails(mapInstance);
         },
         (error) => {
+          console.error("Error getting your location:", error);
           alert("Error getting your location: " + error.message);
           setLoading(false);
+          
+          // If geolocation fails, show sample trails
+          addSampleTrails(mapInstance);
         }
       );
     } else {
       alert("Geolocation is not supported by your browser.");
       setLoading(false);
+      
+      // If geolocation not supported, show sample trails
+      addSampleTrails(mapInstance);
     }
+  };
+  
+  // Function to add sample trails from trailData
+  const addSampleTrails = (mapInstance) => {
+    // Use the sample data for trails
+    const sampleLocations = [
+      { id: 1, lat: 43.72, lon: -79.35, name: "Whiskey Rapids Trail", type: "trail" },
+      { id: 2, lat: 43.68, lon: -79.42, name: "Beaver Pond Trail", type: "trail" },
+      { id: 3, lat: 43.65, lon: -79.38, name: "Lookout Trail", type: "trail" }
+    ];
+    
+    sampleLocations.forEach(place => {
+      // Find matching trail from trailData
+      const trail = trailData.find(t => t.id === place.id);
+      if (trail) {
+        const placeMock = {
+          id: trail.id,
+          lat: place.lat,
+          lon: place.lon,
+          name: trail.name,
+          amenities: ["Sample Trail", trail.level],
+          filters: {
+            'Easy': trail.level === 'Easy',
+            'Kid Friendly': Math.random() > 0.5,
+            'Camping': Math.random() > 0.7,
+            'Dog Friendly': Math.random() > 0.6
+          },
+          distance: Math.random() * 5
+        };
+        addParkMarker(placeMock, mapInstance);
+      }
+    });
   };
 
   // Function to search for parks in a specific location
@@ -173,8 +221,9 @@ const MapPage = () => {
     .then(data => processParkData(data, lat, lon, mapInstance))
     .catch(error => {
       console.error('Error fetching parks:', error);
-      alert("Failed to fetch park data. Please try again.");
+      alert("Failed to fetch park data. Using sample trails instead.");
       setLoading(false);
+      addSampleTrails(mapInstance);
     });
   };
 
@@ -185,8 +234,9 @@ const MapPage = () => {
     clearMarkers();
     
     if (data.elements.length === 0) {
-      alert("No parks or trails found nearby. Try searching a different area.");
+      alert("No parks or trails found nearby. Using sample trails instead.");
       setLoading(false);
+      addSampleTrails(mapInstance);
       return;
     }
     
@@ -322,6 +372,9 @@ const MapPage = () => {
       shadowSize: [41, 41]
     });
     
+    // Generate a unique ID for the button
+    const buttonId = `trail-btn-${place.id}`;
+    
     let popupContent = `<div class="park-name">${place.name}</div>`;
     
     if (place.amenities && place.amenities.length > 0) {
@@ -336,15 +389,28 @@ const MapPage = () => {
     
     popupContent += `
       <div style="margin-top: 8px;">
-        <a href="/trails" 
-           style="display: inline-block; background-color: rgb(121, 146, 106); color: white; text-decoration: none; padding: 5px 10px; border-radius: 4px;">
-          View Trails
-        </a>
+        <button id="${buttonId}" 
+                style="background-color: rgb(121, 146, 106); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
+          View Trail Details
+        </button>
       </div>
     `;
     
-    const marker = L.marker([place.lat, place.lon], {icon: parkIcon}).addTo(mapInstance)
+    const marker = L.marker([place.lat, place.lon], {icon: parkIcon})
+      .addTo(mapInstance)
       .bindPopup(popupContent);
+    
+    // Add event listener to the popup when it opens
+    marker.on('popupopen', () => {
+      setTimeout(() => {
+        const button = document.getElementById(buttonId);
+        if (button) {
+          button.addEventListener('click', () => {
+            handleTrailClick(place.id);
+          });
+        }
+      }, 0);
+    });
     
     // Store place data with marker for filtering
     marker.place = place;
@@ -394,8 +460,7 @@ const MapPage = () => {
     });
     
     // Add markers for filtered places
-    const newMarkers = filteredPlaces.map(place => addParkMarker(place, mapInstance));
-    setMarkers(newMarkers);
+    filteredPlaces.forEach(place => addParkMarker(place, mapInstance));
   };
 
   return (
@@ -406,7 +471,7 @@ const MapPage = () => {
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
           </svg>
         </div>
-        <div className="header-title">Home</div>
+        <div className="header-title">Map</div>
       </div>
       
       <div className="map-container">
@@ -488,8 +553,8 @@ const MapPage = () => {
 
         {/* Recommendations section */}
         <div className="recommendations">
-          <Link to="/trails" className="view-trails-btn">
-            View All Trails
+          <Link to="/" className="view-trails-btn">
+            Back to Trails
           </Link>
         </div>
       </div>
